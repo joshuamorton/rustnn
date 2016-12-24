@@ -1,7 +1,11 @@
 extern crate rand;
 
 fn main() {
-    let nn = NeuralNetwork::new(3, vec![2,3,1]);
+    let m = Matrix::new(2, 3);
+    let n = Matrix::new(3, 2);
+    let k = m.mult(n);
+    print!("{:?}", k.data);
+    //let nn = NeuralNetwork::new(3, vec![2,3,1]);
 }
 
 
@@ -14,8 +18,14 @@ struct Matrix {
 
 impl Matrix {
     fn new(rows: usize, cols: usize) -> Matrix {
-        let mut d: Vec<Vec<f32>> = (0..rows).map(|i|
-            Vec::with_capacity(cols)).collect();
+        //let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
+        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| vec![1.0;cols]).collect();
+
+        //for ref mut row in d.iter_mut() {
+            //for i in 0..cols {
+                //row[i] = 1.0;
+            //}
+        //}
 
         Matrix {
             rows: rows,
@@ -24,7 +34,20 @@ impl Matrix {
         }
     }
     fn mult(&self, other: Matrix) -> Matrix {
-        return Matrix::new(1,1);
+        // I'm being bad and won't errorcheck for now
+        
+        // I'm also being lazy and implementing a naive matmul for now
+        
+        let mut result_matrix: Matrix = Matrix::new(self.rows, other.cols);
+        for i in 0..self.rows {
+            for j in 0..other.cols {
+                result_matrix.data[i][j] = 0.0;
+                for k in 0..self.cols {
+                    result_matrix.data[i][j] += self.data[i][k] * other.data[k][j];
+                }
+            }
+        }
+        return result_matrix;
     }
 }
 
