@@ -18,12 +18,17 @@ struct Matrix {
 
 
 impl Matrix {
-    fn ones(rows: usize, cols: usize) -> Matrix {
+    
+    fn ONE() -> f32 {
+        return 1.0;
+    }
+
+    fn build_matrix(rows: usize, cols: usize, gen: fn() -> f32) -> Matrix {
         let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
 
         for ref mut row in d.iter_mut() {
             for i in 0..cols {
-                row.push(1.0);
+                row.push(gen());
             }
         }
 
@@ -34,20 +39,12 @@ impl Matrix {
         }
     }
 
+    fn ones(rows: usize, cols: usize) -> Matrix {
+        return Matrix::build_matrix(rows, cols, Matrix::ONE);
+    }
+
     fn rand(rows: usize, cols: usize) -> Matrix {
-        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
-
-        for ref mut row in d.iter_mut() {
-            for i in 0..cols {
-                row.push(rand::random());
-            }
-        }
-
-        Matrix {
-            rows: rows,
-            cols: cols,
-            data: d
-        }
+        return Matrix::build_matrix(rows, cols, rand::random);
     }
 
     fn from_vec(rows: usize, cols: usize, source: Vec<f32>) -> Matrix {
