@@ -6,8 +6,8 @@ fn main() {
     let k = m.mult(n);
     print!("{:?}\n", k.data);
     print!("{:?}\n", m.data);
-    print!("{:?}\n", Matrix::from_vec(2, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).data);
-    print!("{:?}\n", Matrix::from_vec(2, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0).data);
+    print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).data);
+    print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0).data);
     let nn = NeuralNetwork::new(3, vec![2,3,1]);
 }
 
@@ -21,7 +21,7 @@ struct Matrix {
 
 impl Matrix {
     
-    fn ONE() -> f32 {
+    fn _one() -> f32 {
         // function used to generate ones in build_matrix for Matrix::ones
         return 1.0;
     }
@@ -43,14 +43,14 @@ impl Matrix {
     }
 
     fn ones(rows: usize, cols: usize) -> Matrix {
-        return Matrix::build_matrix(rows, cols, Matrix::ONE);
+        return Matrix::build_matrix(rows, cols, Matrix::_one);
     }
 
     fn rand(rows: usize, cols: usize) -> Matrix {
-        return Matrix::build_matrix(rows, cols, rand::random.apply(|x: f32| x * 2.0 - 1.0);
+        return Matrix::build_matrix(rows, cols, rand::random).apply(|x: f32| x * 2.0 - 1.0);
     }
 
-    fn from_vec(rows: usize, cols: usize, source: Vec<f32>) -> Matrix {
+    fn from_vec(rows: usize, cols: usize, source: &Vec<f32>) -> Matrix {
         let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
 
         let mut rind: usize = 0;
@@ -84,6 +84,20 @@ impl Matrix {
         }
         return result_matrix;
     }
+
+    fn imult(&self, other: &Matrix) -> Matrix {
+        let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
+        for i in 0..self.rows {
+            for j in 0..other.cols {
+                result_matrix.data[i][j] = 0.0;
+                for k in 0..self.cols {
+                    result_matrix.data[i][j] += self.data[i][k] * other.data[k][j];
+                }
+            }
+        }
+        return result_matrix;
+    }
+
 
     fn apply<F>(&self, f: F) -> Matrix where F: Fn(f32) -> f32{
         // yum, closures and function passing
@@ -126,19 +140,20 @@ impl NeuralNetwork {
         }
     }
 
-    fn train_once(&self, X: Vec<f32>, Y: Vec<f32>) {
+    fn train_once(&self, X: &Vec<f32>, Y: &Vec<f32>) {
         let xs = X.len();
         let ys = Y.len();
         if !(xs == self.layer_sizes[0] && ys == self.layer_sizes[self.num_layers - 1]) {
             panic!("Incorrect layer size")
         }
         
-        self._feed_forward(X);
+        let pred = self._feed_forward(X);
     }
 
-    fn _feed_forward(&self, X: Vec<f32>) {
-        let input = Matrix::from_vec(1, X.len(), X);
-
+    fn _feed_forward(&self, X: &Vec<f32>) -> Matrix {
+        //I can probably use fold here, maybe?
+        let input: Matrix = Matrix::from_vec(1, X.len(), X);
+        return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.imult(l).apply(NeuralNetwork::_sigmoid));
     }
 
     fn _sigmoid(t: f32) -> f32 {
@@ -146,15 +161,28 @@ impl NeuralNetwork {
         return 1.0 / (1.0 + e.powf(t));
     }
 
-    fn _cost() {
+    fn _cost(&self, Y: Vec<f32>, pred: Vec<f32>) -> f32 {
+        //just rmse for now
+        let mut accum = 0.0;
+        let outs = Y.len() as f32;
+        for i in 0..Y.len() {
+            accum += (Y[i] - pred[i]) * (Y[i] - pred[i]) / outs;
+        }
+
+        return accum.sqrt();
     }
 
     fn _backpropogate() {
     }
 
-    fn predict() {
+    fn predict(&self, X: Vec<f32>) -> Vec<f32>{
+        let result: Vec<f32> = X.clone();
+        return result;
     }
 
-    fn train() {
+    fn train(&self, samples: Vec<Vec<f32>>, outs: Vec<Vec<f32>> ) {
+        for i in 0..samples.len() {
+            self.train_once(&samples[i], &outs[i]);
+        }
     }
 }
