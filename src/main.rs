@@ -1,11 +1,12 @@
 extern crate rand;
 
 fn main() {
-    let m = Matrix::new(2, 3);
-    let n = Matrix::new(3, 2);
+    let m = Matrix::rand(2, 3);
+    let n = Matrix::rand(3, 2);
     let k = m.mult(n);
-    print!("{:?}", k.data);
-    //let nn = NeuralNetwork::new(3, vec![2,3,1]);
+    print!("{:?}\n", k.data);
+    print!("{:?}\n", Matrix::from_vec(2, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).data);
+    let nn = NeuralNetwork::new(3, vec![2,3,1]);
 }
 
 
@@ -17,15 +18,14 @@ struct Matrix {
 
 
 impl Matrix {
-    fn new(rows: usize, cols: usize) -> Matrix {
-        //let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
-        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| vec![1.0;cols]).collect();
+    fn ones(rows: usize, cols: usize) -> Matrix {
+        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
 
-        //for ref mut row in d.iter_mut() {
-            //for i in 0..cols {
-                //row[i] = 1.0;
-            //}
-        //}
+        for ref mut row in d.iter_mut() {
+            for i in 0..cols {
+                row.push(1.0);
+            }
+        }
 
         Matrix {
             rows: rows,
@@ -33,12 +33,47 @@ impl Matrix {
             data: d
         }
     }
+
+    fn rand(rows: usize, cols: usize) -> Matrix {
+        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
+
+        for ref mut row in d.iter_mut() {
+            for i in 0..cols {
+                row.push(rand::random());
+            }
+        }
+
+        Matrix {
+            rows: rows,
+            cols: cols,
+            data: d
+        }
+    }
+
+    fn from_vec(rows: usize, cols: usize, source: Vec<f32>) -> Matrix {
+        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
+
+        let mut rind: usize = 0;
+        for ref mut row in d.iter_mut() {
+            for i in 0..cols {
+                row.push(source[rind * cols + i]);
+            }
+            rind += 1;
+        }
+
+        Matrix {
+            rows: rows,
+            cols: cols,
+            data: d
+        }
+    }
+
     fn mult(&self, other: Matrix) -> Matrix {
         // I'm being bad and won't errorcheck for now
         
         // I'm also being lazy and implementing a naive matmul for now
         
-        let mut result_matrix: Matrix = Matrix::new(self.rows, other.cols);
+        let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
         for i in 0..self.rows {
             for j in 0..other.cols {
                 result_matrix.data[i][j] = 0.0;
@@ -71,15 +106,8 @@ impl NeuralNetwork {
         // That means that connections should actually be a tensor of order 3, of shape
         // (num_layers - 1) * layer_L.len * layer_L+1.len
         let mut connections: Vec<Matrix> = (0..(num_layers-1)).map(|l| 
-            Matrix::new(layer_sizes[l], layer_sizes[l+1])).collect();
+            Matrix::rand(layer_sizes[l], layer_sizes[l+1])).collect();
 
-        for conn in connections.iter_mut() {
-            for neuron in conn.data.iter_mut() {
-                for weight in neuron.iter_mut() {
-                    *weight = rand::random();
-                }
-            }
-        }
         NeuralNetwork { 
             num_layers: num_layers,
             layer_sizes: layer_sizes, 
