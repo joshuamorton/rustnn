@@ -5,7 +5,9 @@ fn main() {
     let n = Matrix::rand(3, 2);
     let k = m.mult(n);
     print!("{:?}\n", k.data);
+    print!("{:?}\n", m.data);
     print!("{:?}\n", Matrix::from_vec(2, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).data);
+    print!("{:?}\n", Matrix::from_vec(2, 3, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0).data);
     let nn = NeuralNetwork::new(3, vec![2,3,1]);
 }
 
@@ -20,6 +22,7 @@ struct Matrix {
 impl Matrix {
     
     fn ONE() -> f32 {
+        // function used to generate ones in build_matrix for Matrix::ones
         return 1.0;
     }
 
@@ -44,7 +47,7 @@ impl Matrix {
     }
 
     fn rand(rows: usize, cols: usize) -> Matrix {
-        return Matrix::build_matrix(rows, cols, rand::random);
+        return Matrix::build_matrix(rows, cols, rand::random.apply(|x: f32| x * 2.0 - 1.0);
     }
 
     fn from_vec(rows: usize, cols: usize, source: Vec<f32>) -> Matrix {
@@ -77,6 +80,17 @@ impl Matrix {
                 for k in 0..self.cols {
                     result_matrix.data[i][j] += self.data[i][k] * other.data[k][j];
                 }
+            }
+        }
+        return result_matrix;
+    }
+
+    fn apply<F>(&self, f: F) -> Matrix where F: Fn(f32) -> f32{
+        // yum, closures and function passing
+        let mut result_matrix: Matrix = Matrix::ones(self.rows, self.cols);
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                result_matrix.data[i][j] = f(self.data[i][j]);
             }
         }
         return result_matrix;
@@ -123,7 +137,13 @@ impl NeuralNetwork {
     }
 
     fn _feed_forward(&self, X: Vec<f32>) {
+        let input = Matrix::from_vec(1, X.len(), X);
 
+    }
+
+    fn _sigmoid(t: f32) -> f32 {
+        let e: f32 = 2.71828182846;
+        return 1.0 / (1.0 + e.powf(t));
     }
 
     fn _cost() {
