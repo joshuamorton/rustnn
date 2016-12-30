@@ -3,12 +3,12 @@ extern crate rand;
 fn main() {
     let m = Matrix::rand(2, 3);
     let n = Matrix::rand(3, 2);
-    let k = m.mult(n);
+    let k = m.mult(&n);
     print!("{:?}\n", k.data);
     print!("{:?}\n", m.data);
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).data);
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0).data);
-    let nn = NeuralNetwork::new(3, vec![2,3,1]);
+    let nn = NeuralNetwork::new(3, vec![2,3,1], 0.001);
 }
 
 
@@ -68,24 +68,8 @@ impl Matrix {
         }
     }
 
-    fn mult(&self, other: Matrix) -> Matrix {
-        // I'm being bad and won't errorcheck for now
-        
-        // I'm also being lazy and implementing a naive matmul for now
-        
-        let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
-        for i in 0..self.rows {
-            for j in 0..other.cols {
-                result_matrix.data[i][j] = 0.0;
-                for k in 0..self.cols {
-                    result_matrix.data[i][j] += self.data[i][k] * other.data[k][j];
-                }
-            }
-        }
-        return result_matrix;
-    }
 
-    fn imult(&self, other: &Matrix) -> Matrix {
+    fn mult(&self, other: &Matrix) -> Matrix {
         let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
         for i in 0..self.rows {
             for j in 0..other.cols {
@@ -109,18 +93,22 @@ impl Matrix {
         }
         return result_matrix;
     }
+
+    fn iadd(&self, other: &Matrix) {
+    }
 }
 
 
 struct NeuralNetwork {
     num_layers: usize,
     layer_sizes: Vec<usize>,
-    connections: Vec<Matrix>
+    connections: Vec<Matrix>,
+    learning_rate: f32,
 
 }
 
 impl NeuralNetwork {
-    fn new(num_layers: usize, layer_sizes: Vec<usize>) -> NeuralNetwork {
+    fn new(num_layers: usize, layer_sizes: Vec<usize>, learning_rate: f32) -> NeuralNetwork {
         /* While this isn't enforced, for any reasonable network, num_layers
          * should be >= 3, where layer 1 is the input size, and layer 3 is the
          * output size. This isn't enforced because I'm lazy.
@@ -136,7 +124,8 @@ impl NeuralNetwork {
         NeuralNetwork { 
             num_layers: num_layers,
             layer_sizes: layer_sizes, 
-            connections: connections
+            connections: connections,
+            learning_rate: learning_rate,
         }
     }
 
@@ -148,12 +137,14 @@ impl NeuralNetwork {
         }
         
         let pred = self._feed_forward(X);
+        let ref pred_vec = pred.data[0];
+        self._backpropogate(Y, pred_vec);
     }
 
     fn _feed_forward(&self, X: &Vec<f32>) -> Matrix {
         //I can probably use fold here, maybe?
         let input: Matrix = Matrix::from_vec(1, X.len(), X);
-        return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.imult(l).apply(NeuralNetwork::_sigmoid));
+        return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.mult(l).apply(NeuralNetwork::_sigmoid));
     }
 
     fn _sigmoid(t: f32) -> f32 {
@@ -161,7 +152,7 @@ impl NeuralNetwork {
         return 1.0 / (1.0 + e.powf(t));
     }
 
-    fn _cost(&self, Y: Vec<f32>, pred: Vec<f32>) -> f32 {
+    fn _cost(&self, Y: &Vec<f32>, pred: &Vec<f32>) -> f32 {
         //just rmse for now
         let mut accum = 0.0;
         let outs = Y.len() as f32;
@@ -172,15 +163,20 @@ impl NeuralNetwork {
         return accum.sqrt();
     }
 
-    fn _backpropogate() {
+    fn _d_sigmoid(t: f32) -> f32 {
+        return NeuralNetwork::_sigmoid(t) * (1.0 - NeuralNetwork::_sigmoid(t));
     }
 
-    fn predict(&self, X: Vec<f32>) -> Vec<f32>{
+    fn _backpropogate(&self, Y: &Vec<f32>, pred: &Vec<f32>) {
+        // handle last layer specially
+    }
+
+    fn predict(&self, X: &Vec<f32>) -> Vec<f32>{
         let result: Vec<f32> = X.clone();
         return result;
     }
 
-    fn train(&self, samples: Vec<Vec<f32>>, outs: Vec<Vec<f32>> ) {
+    fn train(&self, samples: &Vec<Vec<f32>>, outs: &Vec<Vec<f32>> ) {
         for i in 0..samples.len() {
             self.train_once(&samples[i], &outs[i]);
         }
