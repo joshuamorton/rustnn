@@ -10,10 +10,10 @@ fn main() {
     let m = Matrix::rand(2, 3);
     let n = Matrix::rand(3, 2);
     let k = m.mult(&n);
-    print!("{:?}\n", k.data);
-    print!("{:?}\n", m.data);
-    print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).data);
-    print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0).data);
+    print!("{:?}\n", k._p());
+    print!("{:?}\n", m._p());
+    print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0])._p());
+    print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0)._p());
     let nn = NeuralNetwork::new(3, vec![2,3,1], 0.001);
 }
 
@@ -76,6 +76,7 @@ impl Matrix {
 
     fn mult(&self, other: &Matrix) -> Matrix {
         let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
+        //swap this to good indexing at some point
         for i in 0..self.rows {
             for j in 0..other.cols {
                 result_matrix.data[i * other.cols + j] = 0.0;
@@ -100,6 +101,19 @@ impl Matrix {
     }
 
     fn iadd(&self, other: &Matrix) {
+    }
+
+    fn _p(&self) -> Vec<Vec<f32>> {
+        // pretty print ish
+        let mut d: Vec<Vec<f32>> = (0..self.rows).map(|i| Vec::with_capacity(self.cols)).collect();
+        let mut rind: usize = 0;
+        for ref mut row in d.iter_mut() {
+            for i in 0..self.cols {
+                row.push(self.data[rind * self.cols + i]);
+            }
+            rind += 1;
+        }
+        return d;
     }
 }
 
