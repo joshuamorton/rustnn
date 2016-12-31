@@ -1,4 +1,10 @@
 extern crate rand;
+use std::ops::Index;
+use std::ops::IndexMut;
+use std::ops::Range;
+use std::ops::RangeTo;
+use std::ops::RangeFrom;
+use std::ops::RangeFull;
 
 fn main() {
     let m = Matrix::rand(2, 3);
@@ -15,11 +21,18 @@ fn main() {
 struct Matrix {
    rows: usize,
    cols: usize,
-   data: Vec<Vec<f32>>
+   data: Vec<f32>
 }
 
 
 impl Matrix {
+    /* A matrix is in this case a way to represent the connections between
+     * layers of a neural network. If you represent the initial input as a
+     * row vector (1 row, n columns, which we do), then the each row of the
+     * matrix represents the output weights of one neuron on the first layer,
+     * and each column represents the input weights of one of the neurons on
+     * the second layer.
+     */
     
     fn _one() -> f32 {
         // function used to generate ones in build_matrix for Matrix::ones
@@ -27,12 +40,9 @@ impl Matrix {
     }
 
     fn build_matrix(rows: usize, cols: usize, gen: fn() -> f32) -> Matrix {
-        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
-
-        for ref mut row in d.iter_mut() {
-            for i in 0..cols {
-                row.push(gen());
-            }
+        let mut d: Vec<f32> = Vec::with_capacity(rows * cols);
+        for i in 0..(rows * cols) {
+            d.push(gen());
         }
 
         Matrix {
@@ -51,14 +61,10 @@ impl Matrix {
     }
 
     fn from_vec(rows: usize, cols: usize, source: &Vec<f32>) -> Matrix {
-        let mut d: Vec<Vec<f32>> = (0..rows).map(|i| Vec::with_capacity(cols)).collect();
+        let mut d: Vec<f32> = Vec::with_capacity(rows * cols);
 
-        let mut rind: usize = 0;
-        for ref mut row in d.iter_mut() {
-            for i in 0..cols {
-                row.push(source[rind * cols + i]);
-            }
-            rind += 1;
+        for i in 0..(rows * cols) {
+            d.push(source[i]);
         }
 
         Matrix {
@@ -68,14 +74,13 @@ impl Matrix {
         }
     }
 
-
     fn mult(&self, other: &Matrix) -> Matrix {
         let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
         for i in 0..self.rows {
             for j in 0..other.cols {
-                result_matrix.data[i][j] = 0.0;
+                result_matrix.data[i * other.cols + j] = 0.0;
                 for k in 0..self.cols {
-                    result_matrix.data[i][j] += self.data[i][k] * other.data[k][j];
+                    result_matrix.data[i * other.cols + j] += self.data[i * self.cols + k] * other.data[k * other.cols + j];
                 }
             }
         }
@@ -88,13 +93,37 @@ impl Matrix {
         let mut result_matrix: Matrix = Matrix::ones(self.rows, self.cols);
         for i in 0..self.rows {
             for j in 0..self.cols {
-                result_matrix.data[i][j] = f(self.data[i][j]);
+                result_matrix[(i,j)] = f(self[(i,j)]);
             }
         }
         return result_matrix;
     }
 
     fn iadd(&self, other: &Matrix) {
+    }
+}
+
+impl Index<usize> for Matrix {
+    type Output = f32;
+
+    fn index(&self, idx: usize) -> &f32 {
+        return &self.data[idx];
+    }
+}
+
+impl Index<(usize, usize)> for Matrix {
+    type Output = f32;
+
+    fn index(&self, coords: (usize, usize)) -> &f32 {
+        let (i, j) = coords;
+        return &self.data[self.cols * i + j];
+    }
+}
+
+impl IndexMut<(usize, usize)> for Matrix {
+    fn index_mut(&mut self, coords: (usize, usize)) -> &mut f32 {
+        let (i, j) = coords;
+        return &mut self.data[self.cols * i + j];
     }
 }
 
@@ -137,7 +166,7 @@ impl NeuralNetwork {
         }
         
         let pred = self._feed_forward(X);
-        let ref pred_vec = pred.data[0];
+        let ref pred_vec = pred.data;
         self._backpropogate(Y, pred_vec);
     }
 
