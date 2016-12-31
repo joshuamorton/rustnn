@@ -1,9 +1,6 @@
 extern crate rand;
 use std::ops::Index;
 use std::ops::IndexMut;
-use std::ops::Range;
-use std::ops::RangeTo;
-use std::ops::RangeFrom;
 use std::ops::RangeFull;
 
 fn main() {
@@ -134,6 +131,15 @@ impl Index<(usize, usize)> for Matrix {
     }
 }
 
+impl Index<(usize, RangeFull)> for Matrix {
+    type Output = [f32];
+
+    fn index(&self, coords: (usize, RangeFull)) -> &[f32] {
+        let (i, _) = coords;
+        return &self.data[i * self.cols.. (i+1) * self.cols];
+    }
+}
+
 impl IndexMut<(usize, usize)> for Matrix {
     fn index_mut(&mut self, coords: (usize, usize)) -> &mut f32 {
         let (i, j) = coords;
@@ -179,13 +185,13 @@ impl NeuralNetwork {
             panic!("Incorrect layer size")
         }
         
-        let pred = self._feed_forward(X);
-        let ref pred_vec = pred.data;
-        self._backpropogate(Y, pred_vec);
+        //let pred = self._feed_forward(X);
+        //let ref pred_vec = pred.data;
+        //self._backpropogate(Y, pred_vec);
     }
 
-    fn _feed_forward(&self, X: &Vec<f32>) -> Matrix {
-        //I can probably use fold here, maybe?
+    fn _solo_feed_forward(&self, X: &Vec<f32>) -> Matrix {
+        //god this is pretty
         let input: Matrix = Matrix::from_vec(1, X.len(), X);
         return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.mult(l).apply(NeuralNetwork::_sigmoid));
     }
@@ -215,8 +221,7 @@ impl NeuralNetwork {
     }
 
     fn predict(&self, X: &Vec<f32>) -> Vec<f32>{
-        let result: Vec<f32> = X.clone();
-        return result;
+       return self._solo_feed_forward(X)._p()[0].clone();
     }
 
     fn train(&self, samples: &Vec<Vec<f32>>, outs: &Vec<Vec<f32>> ) {
