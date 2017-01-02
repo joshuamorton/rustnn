@@ -11,6 +11,8 @@ fn main() {
     print!("{:?}\n", m._p());
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0])._p());
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0)._p());
+    print!("{:?}\n", Matrix::vec_to_mat(&vec![0.0, 1.0, 2.0]).dot(&Matrix::vec_to_mat(&vec![1.0; 3])));
+
     let nn = NeuralNetwork::new(3, vec![2,3,1], 0.001);
 }
 
@@ -71,8 +73,21 @@ impl Matrix {
         }
     }
 
+    fn vec_to_mat(source: &Vec<f32>) -> Matrix {
+        let mut d = source.clone();
+        Matrix {
+            rows: 1,
+            cols: d.len(),
+            data: d
+        }
+    }
+
+    fn to_vec(&self) -> Vec<f32> {
+        return self.data.clone();
+    }
+
     fn mult(&self, other: &Matrix) -> Matrix {
-        let mut result_matrix: Matrix = Matrix::rand(self.rows, other.cols);
+        let mut result_matrix: Matrix = Matrix::ones(self.rows, other.cols);
         //swap this to good indexing at some point
         for i in 0..self.rows {
             for j in 0..other.cols {
@@ -85,6 +100,21 @@ impl Matrix {
         return result_matrix;
     }
 
+    fn sub(&self, other: &Matrix) -> Matrix {
+        //they need to be the same size, so this still works
+        let mut result_matrix: Matrix = Matrix::ones(self.rows, other.cols);
+        for i in 0..self.rows {
+            for j in 0..other.cols {
+                result_matrix[(i, j)] = self[(i, j)] - other[(i, j)];
+            }
+        }
+        return result_matrix;
+    }
+
+    fn vec_mult(&self, other: &Vec<f32>) -> Matrix {
+        let input_mat = Matrix::vec_to_mat(other);
+        return input_mat.mult(self);
+    }
 
     fn apply<F>(&self, f: F) -> Matrix where F: Fn(f32) -> f32{
         // yum, closures and function passing
@@ -97,8 +127,18 @@ impl Matrix {
         return result_matrix;
     }
 
-    fn iadd(&self, other: &Matrix) {
+    fn dot(&self, other: &Matrix) -> f32 {
+        let mut result = 0.0;
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                result += self[(i, j)] * other[(i, j)]
+            }
+        }
+        return result;
     }
+
+    //fn iadd(&self, other: &Matrix) {
+    //}
 
     fn _p(&self) -> Vec<Vec<f32>> {
         // pretty print ish
@@ -167,6 +207,8 @@ impl NeuralNetwork {
         // in layer L, and N is the number of neurons in layer L + 1.
         // That means that connections should actually be a tensor of order 3, of shape
         // (num_layers - 1) * layer_L.len * layer_L+1.len
+    
+        //TODO: add bias
         let mut connections: Vec<Matrix> = (0..(num_layers-1)).map(|l| 
             Matrix::rand(layer_sizes[l], layer_sizes[l+1])).collect();
 
@@ -184,10 +226,24 @@ impl NeuralNetwork {
         if !(xs == self.layer_sizes[0] && ys == self.layer_sizes[self.num_layers - 1]) {
             panic!("Incorrect layer size")
         }
-        
-        //let pred = self._feed_forward(X);
-        //let ref pred_vec = pred.data;
-        //self._backpropogate(Y, pred_vec);
+        let mut partial_outputs = Vec::with_capacity(self.num_layers + 1);
+        //partial_outputs[i] == input[i+1]
+
+        partial_outputs.push(X.clone());
+        // feed forward and save the intermediate layer values
+        for layer in &self.connections {
+            let idx = partial_outputs.len() - 1;
+            let new_layer = layer.vec_mult(&partial_outputs[idx]).apply(NeuralNetwork::_sigmoid);
+            partial_outputs.push(new_layer.to_vec());
+        }
+        self._backpropogate(X, Y, partial_outputs);
+    }
+
+    fn _backpropogate(&self, X: &Vec<f32>, Y: &Vec<f32>, partial_outputs: Vec<Vec<f32>>) {
+        let mut deltas: Vec<f32> = Vec::with_capacity(self.num_layers);
+        let mut error = Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 1]).sub(&Matrix::vec_to_mat(Y));
+        deltas.push(error.dot(&Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 2])) * self.learning_rate)
+
     }
 
     fn _solo_feed_forward(&self, X: &Vec<f32>) -> Matrix {
@@ -214,10 +270,6 @@ impl NeuralNetwork {
 
     fn _d_sigmoid(t: f32) -> f32 {
         return NeuralNetwork::_sigmoid(t) * (1.0 - NeuralNetwork::_sigmoid(t));
-    }
-
-    fn _backpropogate(&self, Y: &Vec<f32>, pred: &Vec<f32>) {
-        // handle last layer specially
     }
 
     fn predict(&self, X: &Vec<f32>) -> Vec<f32>{
