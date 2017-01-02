@@ -127,6 +127,16 @@ impl Matrix {
         return result_matrix;
     }
 
+    fn emult(&self, other: &Matrix) -> Matrix {
+        let mut result_matrix: Matrix = Matrix::ones(self.rows, self.cols);
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                result_matrix[(i,j)] = self[(i,j)] * other[(i,j)];
+            }
+        }
+        return result_matrix;
+    }
+
     fn dot(&self, other: &Matrix) -> f32 {
         let mut result = 0.0;
         for i in 0..self.rows {
@@ -242,7 +252,15 @@ impl NeuralNetwork {
     fn _backpropogate(&self, X: &Vec<f32>, Y: &Vec<f32>, partial_outputs: Vec<Vec<f32>>) {
         let mut deltas: Vec<f32> = Vec::with_capacity(self.num_layers);
         let mut error = Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 1]).sub(&Matrix::vec_to_mat(Y));
-        deltas.push(error.dot(&Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 2])) * self.learning_rate)
+        deltas.push(error.dot(&Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 2])) * self.learning_rate);
+
+        for idx in (1..self.connections.len()).rev() {
+            let prev_error = error;
+            let prev_inputs = Matrix::vec_to_mat(&partial_outputs[idx-1]).mult(&self.connections[idx-1]);
+            error = prev_error.mult(&self.connections[idx]).emult(&prev_inputs.apply(NeuralNetwork::_d_sigmoid));
+            deltas.insert(0, Matrix::vec_to_mat(&partial_outputs[idx-1]).dot(&error));
+        }
+
 
     }
 
