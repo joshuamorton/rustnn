@@ -11,9 +11,22 @@ fn main() {
     print!("{:?}\n", m._p());
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0])._p());
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0)._p());
-    print!("{:?}\n", Matrix::vec_to_mat(&vec![0.0, 1.0, 2.0]).dot(&Matrix::vec_to_mat(&vec![1.0; 3])));
 
-    let nn = NeuralNetwork::new(3, vec![2,3,1], 0.001);
+    let mut nn = NeuralNetwork::new(vec![3,1], 0.001);
+
+    for i in 0..10000 {
+        let inputs: Vec<f32> = vec![rand::random(), rand::random(), rand::random()];
+        let outputs = vec![inputs[0] + inputs[1] + inputs[2]];
+        nn.train_once(&inputs, &outputs);
+        if i % 1000 == 0 {
+            print!("{:?}\n", nn.connections[0]._p());
+        }
+    }
+
+    print!("{:?}\n", nn.predict(&vec![0.0, 0.0, 0.0]));
+    print!("{:?}\n", nn.predict(&vec![1.0, 1.0, 1.0]));
+    print!("{:?}\n", nn.predict(&vec![1.0, 2.0, 3.0]));
+    print!("{:?}\n", nn.predict(&vec![3.1, 2.7, 1.0]));
 }
 
 
@@ -87,6 +100,9 @@ impl Matrix {
     }
 
     fn mult(&self, other: &Matrix) -> Matrix {
+        if self.cols != other.rows {
+            panic!("Matrix dimensions do not match!")
+        }
         let mut result_matrix: Matrix = Matrix::ones(self.rows, other.cols);
         //swap this to good indexing at some point
         for i in 0..self.rows {
@@ -127,7 +143,7 @@ impl Matrix {
         return result_matrix;
     }
 
-    fn emult(&self, other: &Matrix) -> Matrix {
+    fn emult(&self, other: &Matrix) -> Matrix {  // elementwise multiply
         let mut result_matrix: Matrix = Matrix::ones(self.rows, self.cols);
         for i in 0..self.rows {
             for j in 0..self.cols {
@@ -136,19 +152,6 @@ impl Matrix {
         }
         return result_matrix;
     }
-
-    fn dot(&self, other: &Matrix) -> f32 {
-        let mut result = 0.0;
-        for i in 0..self.rows {
-            for j in 0..self.cols {
-                result += self[(i, j)] * other[(i, j)]
-            }
-        }
-        return result;
-    }
-
-    //fn iadd(&self, other: &Matrix) {
-    //}
 
     fn _p(&self) -> Vec<Vec<f32>> {
         // pretty print ish
@@ -162,6 +165,21 @@ impl Matrix {
         }
         return d;
     }
+
+    fn tp(&self) -> Matrix {  //transpose
+        let mut result_matrix: Matrix = Matrix::ones(self.cols, self.rows);
+        for i in 0..self.rows {
+            for j in 0..self.cols {
+                result_matrix[(j, i)] = self[(i, j)];
+            }
+        }
+        return result_matrix;
+    }
+
+    fn shape(&self) -> Vec<usize> {
+        return vec![self.rows, self.cols];
+    }
+
 }
 
 impl Index<usize> for Matrix {
@@ -203,11 +221,12 @@ struct NeuralNetwork {
     layer_sizes: Vec<usize>,
     connections: Vec<Matrix>,
     learning_rate: f32,
+    regularization_param: f32,
 
 }
 
 impl NeuralNetwork {
-    fn new(num_layers: usize, layer_sizes: Vec<usize>, learning_rate: f32) -> NeuralNetwork {
+    fn new(layer_sizes: Vec<usize>, learning_rate: f32) -> NeuralNetwork {
         /* While this isn't enforced, for any reasonable network, num_layers
          * should be >= 3, where layer 1 is the input size, and layer 3 is the
          * output size. This isn't enforced because I'm lazy.
@@ -219,25 +238,26 @@ impl NeuralNetwork {
         // (num_layers - 1) * layer_L.len * layer_L+1.len
     
         //TODO: add bias
-        let mut connections: Vec<Matrix> = (0..(num_layers-1)).map(|l| 
+        let mut connections: Vec<Matrix> = (0..(layer_sizes.len()-1)).map(|l| 
             Matrix::rand(layer_sizes[l], layer_sizes[l+1])).collect();
 
         NeuralNetwork { 
-            num_layers: num_layers,
+            num_layers: layer_sizes.len(),
             layer_sizes: layer_sizes, 
             connections: connections,
             learning_rate: learning_rate,
+            regularization_param: 0.001,
         }
     }
 
-    fn train_once(&self, X: &Vec<f32>, Y: &Vec<f32>) {
+    fn train_once(&mut self, X: &Vec<f32>, Y: &Vec<f32>) {
         let xs = X.len();
         let ys = Y.len();
         if !(xs == self.layer_sizes[0] && ys == self.layer_sizes[self.num_layers - 1]) {
             panic!("Incorrect layer size")
         }
-        let mut partial_outputs = Vec::with_capacity(self.num_layers + 1);
-        //partial_outputs[i] == input[i+1]
+        let mut partial_outputs = Vec::with_capacity(self.connections.len() + 1);
+        //partial_outputs[i] == input[i]
 
         partial_outputs.push(X.clone());
         // feed forward and save the intermediate layer values
@@ -249,24 +269,50 @@ impl NeuralNetwork {
         self._backpropogate(X, Y, partial_outputs);
     }
 
-    fn _backpropogate(&self, X: &Vec<f32>, Y: &Vec<f32>, partial_outputs: Vec<Vec<f32>>) {
-        let mut deltas: Vec<f32> = Vec::with_capacity(self.num_layers);
-        let mut error = Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 1]).sub(&Matrix::vec_to_mat(Y));
-        deltas.push(error.dot(&Matrix::vec_to_mat(&partial_outputs[partial_outputs.len() - 2])) * self.learning_rate);
-
+    fn _backpropogate(& mut self, X: &Vec<f32>, Y: &Vec<f32>, i: Vec<Vec<f32>>) {
+        /* The delta rule states that ΔW_ji = a(t_j - y_j) * g'(h_j) * x_i
+         * That is, the delta from neuron js ith weight is the above where (
+         * according to wikipedia)
+         * a = learning rate
+         * t_j = target output
+         * y_j = actual output
+         * g'  = derivative of the activation function
+         * h_j = weighted sum of inputs to this neuron (ie. pre-activation y_j)
+         * x_i = the ith input
+         *
+         
+         * Then all we need is T-Y when the layer is an inner layer. This is gradients of the next
+         * layer multiplied by the weights of the current layer.
+         *
+         * partial_inputs[i] == input[i], meaning o[i].mult(connections[i]) is the output of layer
+         * i.
+         */
+        let mut errors: Vec<Matrix> = Vec::with_capacity(self.num_layers);  // row vectors
+        let mut error = Matrix::vec_to_mat(&i[i.len() - 1]).sub(&Matrix::vec_to_mat(Y));
+        errors.push(error.emult(&Matrix::vec_to_mat(&i[i.len() - 2]).apply(NeuralNetwork::_d_sigmoid)));
         for idx in (1..self.connections.len()).rev() {
-            let prev_error = error;
-            let prev_inputs = Matrix::vec_to_mat(&partial_outputs[idx-1]).mult(&self.connections[idx-1]);
-            error = prev_error.mult(&self.connections[idx]).emult(&prev_inputs.apply(NeuralNetwork::_d_sigmoid));
-            deltas.insert(0, Matrix::vec_to_mat(&partial_outputs[idx-1]).dot(&error));
+            let error = self.connections[idx].mult(&errors[0].tp()).tp();
+            errors.insert(0, error.emult(&Matrix::vec_to_mat(&i[idx]).apply(NeuralNetwork::_d_sigmoid)));
+        }
+        
+        if errors.len() != self.connections.len() {
+            panic!("Its broken");
         }
 
+        let mut deltas: Vec<Matrix> = Vec::with_capacity(self.num_layers);
+        for idx in 0..self.connections.len() {
+            deltas.push(errors[idx].tp().mult(&Matrix::vec_to_mat(&i[idx])).apply(|x:f32| x * self.learning_rate).tp());
+        }
 
+        //update weights
+        for idx in 0..self.connections.len() {
+            self.connections[idx] = self.connections[idx].sub(&deltas[idx]);
+        }
     }
 
     fn _solo_feed_forward(&self, X: &Vec<f32>) -> Matrix {
         //god this is pretty
-        let input: Matrix = Matrix::from_vec(1, X.len(), X);
+        let input: Matrix = Matrix::vec_to_mat(X);
         return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.mult(l).apply(NeuralNetwork::_sigmoid));
     }
 
@@ -294,7 +340,7 @@ impl NeuralNetwork {
        return self._solo_feed_forward(X)._p()[0].clone();
     }
 
-    fn train(&self, samples: &Vec<Vec<f32>>, outs: &Vec<Vec<f32>> ) {
+    fn train(&mut self, samples: &Vec<Vec<f32>>, outs: &Vec<Vec<f32>> ) {
         for i in 0..samples.len() {
             self.train_once(&samples[i], &outs[i]);
         }
