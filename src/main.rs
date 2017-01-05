@@ -304,9 +304,9 @@ impl NeuralNetwork {
             deltas.push(errors[idx].tp().mult(&Matrix::vec_to_mat(&i[idx])).apply(|x:f32| x * self.learning_rate).tp());
         }
 
-        //update weights
+        //update weights and regularize
         for idx in 0..self.connections.len() {
-            self.connections[idx] = self.connections[idx].sub(&deltas[idx]);
+            self.connections[idx] = self.connections[idx].sub(&deltas[idx]).apply(|x:f32| x - self.regularization_param);
         }
     }
 
