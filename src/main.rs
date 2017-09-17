@@ -12,21 +12,44 @@ fn main() {
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0])._p());
     print!("{:?}\n", Matrix::from_vec(2, 3, &vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).apply(|x: f32| x + 1.0)._p());
 
-    let mut nn = NeuralNetwork::new(vec![3,1], 0.001);
+    //let mut nn = NeuralNetwork::new(vec![2,4,1], 0.005);
+    let mut nn = NeuralNetwork::new(vec![1,1], 0.005);
 
-    for i in 0..10000 {
-        let inputs: Vec<f32> = vec![rand::random(), rand::random(), rand::random()];
-        let outputs = vec![inputs[0] + inputs[1] + inputs[2]];
-        nn.train_once(&inputs, &outputs);
+    for i in 0..100000 {
+        nn.train_once(&vec![0.0], &vec![0.0]);
+        nn.train_once(&vec![0.25], &vec![0.5]);
+        nn.train_once(&vec![0.5], &vec![1.0]);
+        nn.train_once(&vec![0.75], &vec![1.5]);
+        nn.train_once(&vec![1.0], &vec![2.0]);
+        nn.train_once(&vec![5.0], &vec![10.0]);
         if i % 1000 == 0 {
             print!("{:?}\n", nn.connections[0]._p());
         }
     }
 
-    print!("{:?}\n", nn.predict(&vec![0.0, 0.0, 0.0]));
-    print!("{:?}\n", nn.predict(&vec![1.0, 1.0, 1.0]));
-    print!("{:?}\n", nn.predict(&vec![1.0, 2.0, 3.0]));
-    print!("{:?}\n", nn.predict(&vec![3.1, 2.7, 1.0]));
+    print!("{:?}\n", nn.predict(&vec![0.0]));
+    print!("{:?}\n", nn.predict(&vec![0.25]));
+    print!("{:?}\n", nn.predict(&vec![0.5]));
+    print!("{:?}\n", nn.predict(&vec![0.75]));
+    print!("{:?}\n", nn.predict(&vec![1.0]));
+
+
+    nn = NeuralNetwork::new(vec![2,3,1], 0.005);
+
+    for i in 0..100000 {
+        nn.train_once(&vec![0.0, 0.0], &vec![0.0]);
+        nn.train_once(&vec![1.0, 1.0], &vec![0.0]);
+        nn.train_once(&vec![1.0, 0.0], &vec![1.0]);
+        nn.train_once(&vec![0.0, 1.0], &vec![1.0]);
+        if i % 1000 == 0 {
+            print!("{:?}\n", nn.connections[0]._p());
+        }
+    }
+
+    print!("{:?}\n", nn.predict(&vec![0.0, 0.0]));
+    print!("{:?}\n", nn.predict(&vec![0.0, 1.0]));
+    print!("{:?}\n", nn.predict(&vec![1.0, 0.0]));
+    print!("{:?}\n", nn.predict(&vec![1.0, 1.0]));
 }
 
 
@@ -53,7 +76,7 @@ impl Matrix {
 
     fn build_matrix(rows: usize, cols: usize, gen: fn() -> f32) -> Matrix {
         let mut d: Vec<f32> = Vec::with_capacity(rows * cols);
-        for i in 0..(rows * cols) {
+        for _ in 0..(rows * cols) {
             d.push(gen());
         }
 
@@ -87,7 +110,7 @@ impl Matrix {
     }
 
     fn vec_to_mat(source: &Vec<f32>) -> Matrix {
-        let mut d = source.clone();
+        let d = source.clone();
         Matrix {
             rows: 1,
             cols: d.len(),
@@ -101,7 +124,7 @@ impl Matrix {
 
     fn mult(&self, other: &Matrix) -> Matrix {
         if self.cols != other.rows {
-            panic!("Matrix dimensions do not match!")
+            panic!("Matrix dimensions do not match: {:?} and {:?}", self.shape(), other.shape())
         }
         let mut result_matrix: Matrix = Matrix::ones(self.rows, other.cols);
         //swap this to good indexing at some point
@@ -155,7 +178,7 @@ impl Matrix {
 
     fn _p(&self) -> Vec<Vec<f32>> {
         // pretty print ish
-        let mut d: Vec<Vec<f32>> = (0..self.rows).map(|i| Vec::with_capacity(self.cols)).collect();
+        let mut d: Vec<Vec<f32>> = (0..self.rows).map(|_| Vec::with_capacity(self.cols)).collect();
         let mut rind: usize = 0;
         for ref mut row in d.iter_mut() {
             for i in 0..self.cols {
@@ -238,7 +261,7 @@ impl NeuralNetwork {
         // (num_layers - 1) * layer_L.len * layer_L+1.len
     
         //TODO: add bias
-        let mut connections: Vec<Matrix> = (0..(layer_sizes.len()-1)).map(|l| 
+        let connections: Vec<Matrix> = (0..(layer_sizes.len()-1)).map(|l| 
             Matrix::rand(layer_sizes[l], layer_sizes[l+1])).collect();
 
         NeuralNetwork { 
@@ -246,30 +269,30 @@ impl NeuralNetwork {
             layer_sizes: layer_sizes, 
             connections: connections,
             learning_rate: learning_rate,
-            regularization_param: 0.001,
+            regularization_param: 0.0001,
         }
     }
 
-    fn train_once(&mut self, X: &Vec<f32>, Y: &Vec<f32>) {
-        let xs = X.len();
-        let ys = Y.len();
+    fn train_once(&mut self, x: &Vec<f32>, y: &Vec<f32>) {
+        let xs = x.len();
+        let ys = y.len();
         if !(xs == self.layer_sizes[0] && ys == self.layer_sizes[self.num_layers - 1]) {
             panic!("Incorrect layer size")
         }
         let mut partial_outputs = Vec::with_capacity(self.connections.len() + 1);
         //partial_outputs[i] == input[i]
 
-        partial_outputs.push(X.clone());
+        partial_outputs.push(x.clone());
         // feed forward and save the intermediate layer values
         for layer in &self.connections {
             let idx = partial_outputs.len() - 1;
             let new_layer = layer.vec_mult(&partial_outputs[idx]).apply(NeuralNetwork::_sigmoid);
             partial_outputs.push(new_layer.to_vec());
         }
-        self._backpropogate(X, Y, partial_outputs);
+        self._backpropogate(y, partial_outputs);
     }
 
-    fn _backpropogate(& mut self, X: &Vec<f32>, Y: &Vec<f32>, i: Vec<Vec<f32>>) {
+    fn _backpropogate(& mut self, y: &Vec<f32>, inputs: Vec<Vec<f32>>) {
         /* The delta rule states that ΔW_ji = a(t_j - y_j) * g'(h_j) * x_i
          * That is, the delta from neuron js ith weight is the above where (
          * according to wikipedia)
@@ -288,11 +311,11 @@ impl NeuralNetwork {
          * i.
          */
         let mut errors: Vec<Matrix> = Vec::with_capacity(self.num_layers);  // row vectors
-        let mut error = Matrix::vec_to_mat(&i[i.len() - 1]).sub(&Matrix::vec_to_mat(Y));
-        errors.push(error.emult(&Matrix::vec_to_mat(&i[i.len() - 2]).apply(NeuralNetwork::_d_sigmoid)));
+        let error = Matrix::vec_to_mat(&inputs[inputs.len() - 1]).sub(&Matrix::vec_to_mat(y));
+        errors.push(error.emult(&Matrix::vec_to_mat(&inputs[inputs.len() - 2]).apply(NeuralNetwork::_d_sigmoid)));
         for idx in (1..self.connections.len()).rev() {
             let error = self.connections[idx].mult(&errors[0].tp()).tp();
-            errors.insert(0, error.emult(&Matrix::vec_to_mat(&i[idx]).apply(NeuralNetwork::_d_sigmoid)));
+            errors.insert(0, error.emult(&Matrix::vec_to_mat(&inputs[idx]).apply(NeuralNetwork::_d_sigmoid)));
         }
         
         if errors.len() != self.connections.len() {
@@ -301,32 +324,33 @@ impl NeuralNetwork {
 
         let mut deltas: Vec<Matrix> = Vec::with_capacity(self.num_layers);
         for idx in 0..self.connections.len() {
-            deltas.push(errors[idx].tp().mult(&Matrix::vec_to_mat(&i[idx])).apply(|x:f32| x * self.learning_rate).tp());
+            deltas.push(Matrix::vec_to_mat(&inputs[idx]).tp().mult(&errors[idx].apply(|x:f32| x * self.learning_rate)));
+            //deltas.push(errors[idx].tp().mult(&Matrix::vec_to_mat(&i[idx])).apply(|x:f32| x * self.learning_rate).tp());
         }
 
         //update weights and regularize
         for idx in 0..self.connections.len() {
-            self.connections[idx] = self.connections[idx].sub(&deltas[idx]).apply(|x:f32| x - self.regularization_param);
+            self.connections[idx] = self.connections[idx].sub(&deltas[idx].apply(|x:f32| x - self.regularization_param));
         }
     }
 
-    fn _solo_feed_forward(&self, X: &Vec<f32>) -> Matrix {
+    fn _solo_feed_forward(&self, x: &Vec<f32>) -> Matrix {
         //god this is pretty
-        let input: Matrix = Matrix::vec_to_mat(X);
-        return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.mult(l).apply(NeuralNetwork::_sigmoid));
+        let input: Matrix = Matrix::vec_to_mat(x);
+        return self.connections.iter().fold(input, |i: Matrix, l: &Matrix| i.mult(&l.apply(NeuralNetwork::_sigmoid)));
     }
 
     fn _sigmoid(t: f32) -> f32 {
         let e: f32 = 2.71828182846;
-        return 1.0 / (1.0 + e.powf(t));
+        return 1.0 / (1.0 + e.powf(-t));
     }
 
-    fn _cost(&self, Y: &Vec<f32>, pred: &Vec<f32>) -> f32 {
+    fn _cost(&self, y: &Vec<f32>, pred: &Vec<f32>) -> f32 {
         //just rmse for now
         let mut accum = 0.0;
-        let outs = Y.len() as f32;
-        for i in 0..Y.len() {
-            accum += (Y[i] - pred[i]) * (Y[i] - pred[i]) / outs;
+        let outs = y.len() as f32;
+        for i in 0..y.len() {
+            accum += (y[i] - pred[i]) * (y[i] - pred[i]) / outs;
         }
 
         return accum.sqrt();
@@ -336,8 +360,8 @@ impl NeuralNetwork {
         return NeuralNetwork::_sigmoid(t) * (1.0 - NeuralNetwork::_sigmoid(t));
     }
 
-    fn predict(&self, X: &Vec<f32>) -> Vec<f32>{
-       return self._solo_feed_forward(X)._p()[0].clone();
+    fn predict(&self, x: &Vec<f32>) -> Vec<f32>{
+       return self._solo_feed_forward(x)._p()[0].clone();
     }
 
     fn train(&mut self, samples: &Vec<Vec<f32>>, outs: &Vec<Vec<f32>> ) {
